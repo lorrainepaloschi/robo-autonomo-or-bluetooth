@@ -17,46 +17,56 @@
 #define IN_4      6
 
 
-/* Definições dos motores a serem controlados */
-#define MOTOR_A                      0x00
-#define MOTOR_B                      0x01
- 
-/* Definições das ações dos motores */
-#define ACAO_FREIO                   0x00
-#define ACAO_MOVIMENTO_ANTI_HORARIO  0x01
-#define ACAO_MOVIMENTO_HORARIO       0x02
-#define ACAO_PONTO_MORTO             0x03
- 
-/* Definições de sentido de giro (em caso de obstáculo) */
-#define SENTIDO_GIRO_ANTI_HORARIO    0x00
-#define SENTIDO_GIRO_HORARIO         0x01
- 
-/* Definições do desvio de objetos */
-#define ESTADO_AGUARDA_OBSTACULO     0x00
-#define ESTADO_GIRANDO               0x01
  
 /* Variáveis e objetos globais */
 Ultrasonic ultrasonic_center(GPIO_TRIGGER_CENTER, GPIO_ECHO);
 Ultrasonic ultrasonic_direita(GPIO_TRIGGER_DIREITA, GPIO_ECHO);
 Ultrasonic ultrasonic_esquerda(GPIO_TRIGGER_ESQUERDA, GPIO_ECHO);
 
-char ultimo_lado_que_girou = SENTIDO_GIRO_ANTI_HORARIO;
-char estado_desvio_obstaculos = ESTADO_AGUARDA_OBSTACULO;
- 
+
 /* Protótipos */
 void configura_gpios_controle_motor(void);
-void controla_motor(char motor, char acao);
+
 float le_distancia_sensor_ultrasonico_center(void);
 float le_distancia_sensor_ultrasonico_direita(void);
 float le_distancia_sensor_ultrasonico_esquerda(void);
 void maquina_estados_desvio_obstaculos(float distancia_obstaculo);
-void motorRe()
+void re()
 {
 digitalWrite(IN_1,HIGH);
 digitalWrite(IN_2,LOW);
 digitalWrite(IN_3,HIGH);
 digitalWrite(IN_4,LOW);
 }
+void frente()
+{
+digitalWrite(IN_1,LOW);
+digitalWrite(IN_2,HIGH);
+digitalWrite(IN_3,LOW);
+digitalWrite(IN_4,HIGH);
+}
+void parado()
+{
+digitalWrite(IN_1,LOW);
+digitalWrite(IN_2,LOW);
+digitalWrite(IN_3,LOW);
+digitalWrite(IN_4,LOW);
+}
+void direita()
+{
+digitalWrite(IN_1,LOW);
+digitalWrite(IN_2,LOW);
+digitalWrite(IN_3,LOW);
+digitalWrite(IN_4,HIGH);
+}
+void esquerda()
+{
+digitalWrite(IN_1,LOW);
+digitalWrite(IN_2,HIGH);
+digitalWrite(IN_3,LOW);
+digitalWrite(IN_4,LOW);
+}
+
 
 float le_distancia_sensor_ultrasonico_center(void)
 {
@@ -96,147 +106,14 @@ void configura_gpios_controle_motor(void)
     pinMode(IN_3, OUTPUT);
     pinMode(IN_4, OUTPUT);
 }
-/* Função: controle um motor (freia, movimento anti-horário, movimento horário
- *         ou ponto morto)
- * Parâmetros: motor a ser controlado e ação desejada
- * Retorno: nenhum
- */
-void controla_motor(char motor, char acao)
-{
-    int gpio_1_motor = 0;
-    int gpio_2_motor = 0;
- 
-    /* seleciona os GPIOs de acordo com o motor desejado */
-    switch(motor)
-    {
-        case MOTOR_A:
-            gpio_1_motor = IN_2;
-            gpio_2_motor = IN_1;
-            break;
-     
-        case MOTOR_B:
-            gpio_1_motor = IN_4;
-            gpio_2_motor = IN_3;
-            break;
- 
-        default:
-            /* Motor inválido. Nada mais deve ser feito nesta função */
-            return;            
-    }
- 
-    /* Controla o motor conforme ação desejada */
-    switch(acao)
-    {
-        case ACAO_FREIO:
-            digitalWrite(gpio_1_motor, HIGH);
-            digitalWrite(gpio_2_motor, HIGH);
-            break;
- 
-        case ACAO_MOVIMENTO_ANTI_HORARIO:
-            digitalWrite(gpio_1_motor, LOW);
-            digitalWrite(gpio_2_motor, HIGH);
-            break;
- 
-        case ACAO_MOVIMENTO_HORARIO:
-            digitalWrite(gpio_1_motor, HIGH);
-            digitalWrite(gpio_2_motor, LOW);
-            break;
- 
-        case ACAO_PONTO_MORTO:
-            digitalWrite(gpio_1_motor, LOW);
-            digitalWrite(gpio_2_motor, LOW);
-            break;
- 
-        default:
-            /* Ação inválida. Nada mais deve ser feito nesta função */
-            return;                                                            
-    }    
-}
- 
-/* Função: maquina de estado responsavel por controlar o desvio de obstáculos
- * Parâmetros: distância de obstáculo a frente
- * Retorno: nenhum
- */
-void maquina_estados_desvio_obstaculos(float distancia_obstaculo)
-{
-    switch(estado_desvio_obstaculos)
-    {
-        case ESTADO_AGUARDA_OBSTACULO:
-            if (distancia_obstaculo <= DISTANCIA_MINIMA_CM)
-            {
-                /* Obstáculo encontrado. O robô deve girar para
-                   desviar dele */
-                Serial.println("[MOVIMENTO] Obstaculo encontrado!"); 
-                controla_motor(MOTOR_A, ACAO_PONTO_MORTO);
-                controla_motor(MOTOR_B, ACAO_PONTO_MORTO);
-                delay(500);
-                motorRe();
-                delay(1000);
-
-                 
-                /* Alterna sentido de giro para se livrar de obstáculos
-                   (para otimizar o desvio de obstáculos) */
-                if (ultimo_lado_que_girou == SENTIDO_GIRO_ANTI_HORARIO){
-                    ultimo_lado_que_girou = SENTIDO_GIRO_HORARIO;
-                    controla_motor(MOTOR_A, ACAO_PONTO_MORTO);
-                    controla_motor(MOTOR_B, ACAO_PONTO_MORTO);
-                    delay(500);
-                }
-                else{
-                    ultimo_lado_que_girou = SENTIDO_GIRO_ANTI_HORARIO;
-                    controla_motor(MOTOR_A, ACAO_PONTO_MORTO);
-                    controla_motor(MOTOR_B, ACAO_PONTO_MORTO);
-                    delay(500);
-                }     
-                estado_desvio_obstaculos = ESTADO_GIRANDO; 
-            }
-            else
-            {
-                Serial.println("[MOVIMENTO] Sem obstaculos a frente");
-                 
-                /* Se não há obstáculos, continua em frente */
-                controla_motor(MOTOR_A, ACAO_MOVIMENTO_HORARIO);
-                controla_motor(MOTOR_B, ACAO_MOVIMENTO_HORARIO);
-            }
-             
-            break;
- 
-        case ESTADO_GIRANDO: 
-            if (distancia_obstaculo > DISTANCIA_MINIMA_CM)
-            {
-                /* Não há mais obstáculo a frente do robô */  
-                estado_desvio_obstaculos = ESTADO_AGUARDA_OBSTACULO; 
-            }
-            else
-            {
-                if (ultimo_lado_que_girou == SENTIDO_GIRO_ANTI_HORARIO)
-                {
-                    controla_motor(MOTOR_A, ACAO_MOVIMENTO_ANTI_HORARIO);
-                    controla_motor(MOTOR_B, ACAO_MOVIMENTO_HORARIO);
-                    Serial.println("[MOVIMENTO] Girando no sentido anti-horario...");
-                }
-                else
-                {
-                    controla_motor(MOTOR_A, ACAO_MOVIMENTO_HORARIO);
-                    controla_motor(MOTOR_B, ACAO_MOVIMENTO_ANTI_HORARIO);
-                    Serial.println("[MOVIMENTO] Girando no sentido horario...");
-                }
-            }
-             
-            break;
-    }
-}
-
-
 const int pinoLedVermelho = 3; 
 const int pinoSensor = 2; 
 int IN1 = 4;
 int IN2 = 5;
 
 void setup(){
+  Serial.begin(9600);
   configura_gpios_controle_motor();    
-  controla_motor(MOTOR_A, ACAO_FREIO);
-  controla_motor(MOTOR_B, ACAO_FREIO);
   pinMode(pinoSensor, INPUT); 
   pinMode(pinoLedVermelho, OUTPUT); 
   digitalWrite(pinoLedVermelho, LOW);
@@ -251,41 +128,44 @@ void loop(){
   float distancia_a_frente = 0.0;
   float distancia_a_direita = 0.0;
   float distancia_a_esquerda = 0.0;
-  motorRe();
+  frente();
+  
   distancia_a_frente = le_distancia_sensor_ultrasonico_center();
-
-
-  if(distancia_a_frente < 15.0){
-    controla_motor(MOTOR_A, ACAO_FREIO);
-    controla_motor(MOTOR_B, ACAO_FREIO);  
+  Serial.println("frente");
+  Serial.println(distancia_a_frente);
+  if(distancia_a_frente < DISTANCIA_MINIMA_CM){
     
-  distancia_a_direita = le_distancia_sensor_ultrasonico_direita();
-  distancia_a_esquerda = le_distancia_sensor_ultrasonico_esquerda();
-    if( distancia_a_esquerda < distancia_a_direita){
-        controla_motor(MOTOR_A, ACAO_MOVIMENTO_HORARIO);
-        controla_motor(MOTOR_B, ACAO_MOVIMENTO_HORARIO); 
-        delay(500);
+    parado();
+    distancia_a_direita = le_distancia_sensor_ultrasonico_direita();
+    Serial.println("dir");
+    Serial.println(distancia_a_direita);
+    distancia_a_esquerda = le_distancia_sensor_ultrasonico_esquerda();
+    Serial.println("esq");
+    Serial.println(distancia_a_esquerda);
+    if( distancia_a_esquerda > distancia_a_direita){
+        parado();
+
     }else{
-      controla_motor(MOTOR_A, ACAO_MOVIMENTO_ANTI_HORARIO);
-      controla_motor(MOTOR_B, ACAO_MOVIMENTO_ANTI_HORARIO);
+      esquerda();
     }
+
   }
-  //maquina_estados_desvio_obstaculos(distancia_a_frente);
-  int fogo = 0;
+    int fogo = 0;
   fogo = digitalRead(pinoSensor);
-  if(fogo != 0 ){ 
+  if(fogo != 0){ 
       digitalWrite(pinoLedVermelho, LOW);
       digitalWrite(IN2, HIGH);               
       digitalWrite(IN1, HIGH);
-      
-      
   }else{ //LIGA LED VERMELHO E LIGA MOTOR COM HELICE
     digitalWrite(pinoLedVermelho, HIGH); 
+    parado();
     digitalWrite(IN2, HIGH);               
     digitalWrite(IN1, LOW);
-    controla_motor(MOTOR_A, ACAO_FREIO);
-    controla_motor(MOTOR_B, ACAO_FREIO);  
-    
+    delay(10000);
+    parado();
+    delay(5000);
   }
-  delay(TEMPO_ENTRE_LEITURAS_DE_DISTANCIA);
+
+
+  re();
 }
